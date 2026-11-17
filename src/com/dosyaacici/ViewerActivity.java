@@ -43,7 +43,7 @@ import java.util.List;
 public class ViewerActivity extends Activity {
     static final List<String> IMAGES = Arrays.asList("jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "ico", "heic", "heif");
     static final List<String> MEDIA = Arrays.asList("mp4", "mkv", "webm", "3gp", "mov", "avi", "mp3", "wav", "ogg", "m4a", "aac", "flac", "opus", "amr");
-    static final List<String> OFFICE = Arrays.asList("docx", "docm", "dotx", "xlsx", "xlsm", "pptx", "ppsx", "odt", "ods", "odp");
+    static final List<String> OFFICE = Arrays.asList("docx", "docm", "dotx", "xlsx", "xlsm", "pptx", "ppsx", "odt", "ods", "odp", "doc", "dot", "xls", "xlt");
     static final List<String> ARCHIVES = Arrays.asList("zip", "jar", "apk", "epub");
 
     Uri uri;

@@ -15,15 +15,16 @@ Tek ekranlı, sade bir Android dosya görüntüleyici. **Hazır APK: [`dosya-aci
 | Tür | Uzantılar | Not |
 |---|---|---|
 | PDF | pdf | Sayfa sayfa; iki parmakla yakınlaştırma |
-| Word | docx, odt | Metin, paragraflar ve tablolar |
-| Excel | xlsx, ods | Tüm sayfalar tablo olarak |
+| Word | docx, odt, doc | Metin, paragraflar ve tablolar |
+| Excel | xlsx, ods, xls | Tüm sayfalar tablo olarak |
 | PowerPoint | pptx, odp | Slayt slayt metin |
 | Resim | jpg, png, gif, webp, bmp, svg… | Yakınlaştırılabilir |
 | Video / Ses | mp4, mkv, webm, mp3, wav, m4a, ogg… | Telefonun oynatabildiği her şey |
 | Metin / kod | txt, csv, json, xml, md, log, html… | UTF-8 ve Türkçe Windows kodlaması |
 | Arşiv | zip, apk, epub | İçerik listesi |
 
-Eski ikili Office dosyaları (doc, xls, ppt) ve şifreli PDF'ler gösterilmez; "Başka uygulamayla aç" sunulur.
+Eski `.doc` (Word 97–2003) ve `.xls` (Excel 97–2003) dosyaları da açılır. `.doc` tablolarındaki hücreler `|` ile ayrılmış satırlar olarak, `.xls` tarihleri ise sayı olarak görünür.
+Word/Excel 95 ve öncesi, `.ppt`, şifreli dosyalar ve şifreli PDF'ler gösterilmez; "Başka uygulamayla aç" sunulur.
 Office dosyalarında resimler ve yazı biçimlendirmesi (kalın, renk vb.) gösterilmez.
 
 ## Derleme

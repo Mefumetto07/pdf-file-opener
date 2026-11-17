@@ -3,5 +3,5 @@
 set -e
 cd "$(dirname "$0")"
 rm -rf build/test && mkdir -p build/test
-javac -nowarn -cp /usr/share/java/kxml2.jar -d build/test src/com/dosyaacici/Convert.java test/com/dosyaacici/ConvertTest.java
-java -cp build/test:/usr/share/java/kxml2.jar com.dosyaacici.ConvertTest
+javac -nowarn -cp /usr/share/java/kxml2.jar -d build/test src/com/dosyaacici/Convert.java src/com/dosyaacici/Legacy.java test/com/dosyaacici/ConvertTest.java
+java -Dstdout.encoding=UTF-8 -cp build/test:/usr/share/java/kxml2.jar com.dosyaacici.ConvertTest

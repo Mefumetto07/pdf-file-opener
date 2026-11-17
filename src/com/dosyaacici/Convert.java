@@ -175,6 +175,12 @@ public class Convert {
 
     /** Office Open XML / OpenDocument zip -> HTML body. */
     static String office(byte[] data, String ext) throws Exception {
+        try {
+            if (ext.equals("doc") || ext.equals("dot")) return Legacy.doc(data);
+            if (ext.equals("xls") || ext.equals("xlt")) return Legacy.xls(data);
+        } catch (RuntimeException e) {
+            throw Legacy.bad(); // offsets in a damaged binary file point outside the data
+        }
         Map<String, byte[]> z = unzip(data);
         StringBuilder out = new StringBuilder();
         if (ext.equals("docx") || ext.equals("docm") || ext.equals("dotx")) {

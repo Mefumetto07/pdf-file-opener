@@ -21,6 +21,13 @@ public class ConvertTest {
         return java.nio.file.Files.readAllBytes(java.nio.file.Paths.get("test/files", name));
     }
 
+    static String entry(byte[] zip, String name) throws Exception {
+        java.util.zip.ZipInputStream z = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(zip));
+        for (java.util.zip.ZipEntry e; (e = z.getNextEntry()) != null; )
+            if (e.getName().equals(name)) return new String(Convert.read(z), "UTF-8");
+        return null;
+    }
+
     static void check(String html, String expected) {
         if (!html.contains(expected)) throw new AssertionError("missing <" + expected + "> in: " + html);
     }
@@ -53,6 +60,30 @@ public class ConvertTest {
         if (Convert.text(new byte[]{'a', 0, 'b'}) != null) throw new AssertionError("binary not detected");
         if (!Convert.text(new byte[]{(byte) 0xFE}).equals("ş")) throw new AssertionError("cp1254 fallback");
         if (Convert.column("AB12") != 27) throw new AssertionError("column");
+        // editing: runs become spans, edits are written back into the right run, rest untouched
+        byte[] dz = zip("word/document.xml",
+            "<w:document xmlns:w='x'><w:body><w:p><w:r><w:t>Eski</w:t></w:r><w:r><w:tab/><w:t xml:space='preserve'> metin</w:t></w:r><w:r><w:t/></w:r></w:p></w:body></w:document>",
+            "word/media/image1.png", "PNGDATA");
+        java.util.List<String> keys = new java.util.ArrayList<String>();
+        String ed = Convert.office(dz, "docx", keys);
+        check(ed, "<p><span data-k=\"word/document.xml#0\">Eski</span>&emsp;<span data-k=\"word/document.xml#1\"> metin</span><span data-k=\"word/document.xml#2\"></span></p>");
+        if (keys.size() != 3) throw new AssertionError("keys " + keys);
+        java.util.Map<String, String> edits = new java.util.HashMap<String, String>();
+        edits.put("word/document.xml#0", "Yeni & <güzel>");
+        edits.put("word/document.xml#1", " metin");
+        edits.put("word/document.xml#2", "!");
+        byte[] saved = Convert.applyEdits(dz, edits);
+        check(Convert.office(saved, "docx"), "<p>Yeni &amp; &lt;güzel&gt;&emsp; metin!</p>");
+        if (!entry(saved, "word/media/image1.png").equals("PNGDATA")) throw new AssertionError("image lost");
+
+        byte[] pz = zip("ppt/slides/slide1.xml", "<p:sld xmlns:p='p' xmlns:a='a'><a:p><a:r><a:t>Bir</a:t></a:r></a:p></p:sld>",
+                        "ppt/slides/slide2.xml", "<p:sld xmlns:p='p' xmlns:a='a'><a:p><a:r><a:t>Iki</a:t></a:r></a:p></p:sld>");
+        keys.clear();
+        Convert.office(pz, "pptx", keys);
+        edits.clear();
+        for (String k : keys) edits.put(k, k.startsWith("ppt/slides/slide2") ? "Üç" : "Bir");
+        check(Convert.office(Convert.applyEdits(pz, edits), "pptx"), "<p>Bir</p><h3 class=slide>Slayt 2</h3><p>Üç</p>");
+
         // real Word 97 / Excel 97 files written by LibreOffice (test/files)
         String doc = Convert.office(file("t.doc"), "doc");
         check(doc, "<p>Başlık şğüıöç</p><p>Birinci paragraf &amp; kalın metin.</p><p>Alan: bağlantı</p>");

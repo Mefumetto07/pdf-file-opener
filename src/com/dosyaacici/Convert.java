@@ -14,6 +14,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserFactory;
@@ -77,13 +78,23 @@ public class Convert {
         return p;
     }
 
-    /** Word/PowerPoint/OpenDocument body XML -> HTML paragraphs and tables. */
-    static void xml(byte[] data, StringBuilder out) throws Exception {
+    /**
+     * Word/PowerPoint/OpenDocument body XML -> HTML paragraphs and tables.
+     * With keys != null every w:t / a:t text run becomes a span data-k="entry#n" (n = run order) so it can be edited.
+     */
+    static void xml(byte[] data, StringBuilder out, String entry, List<String> keys) throws Exception {
         XmlPullParser p = parser(data);
-        int skip = 0;
+        int skip = 0, run = 0;
         for (int e = p.getEventType(); e != XmlPullParser.END_DOCUMENT; e = p.next()) {
             String n = p.getName();
-            if (e == XmlPullParser.START_TAG) {
+            boolean isRun = keys != null && (n != null) && (n.equals("w:t") || n.equals("a:t"));
+            if (e == XmlPullParser.START_TAG && isRun) {
+                String k = entry + "#" + run++;
+                keys.add(k);
+                out.append("<span data-k=\"").append(k).append("\">");
+            } else if (e == XmlPullParser.END_TAG && isRun) {
+                out.append("</span>");
+            } else if (e == XmlPullParser.START_TAG) {
                 if (n.equals("w:instrText") || n.equals("w:delText")) skip++;
                 String t = TAGS.get(n);
                 if (t != null) out.append('<').append(t).append('>');
@@ -173,8 +184,10 @@ public class Convert {
         }
     }
 
-    /** Office Open XML / OpenDocument zip -> HTML body. */
-    static String office(byte[] data, String ext) throws Exception {
+    static String office(byte[] data, String ext) throws Exception { return office(data, ext, null); }
+
+    /** Office Open XML / OpenDocument zip -> HTML body. keys != null: docx/pptx runs become editable (see xml()). */
+    static String office(byte[] data, String ext, List<String> keys) throws Exception {
         try {
             if (ext.equals("doc") || ext.equals("dot")) return Legacy.doc(data);
             if (ext.equals("xls") || ext.equals("xlt")) return Legacy.xls(data);
@@ -184,19 +197,59 @@ public class Convert {
         Map<String, byte[]> z = unzip(data);
         StringBuilder out = new StringBuilder();
         if (ext.equals("docx") || ext.equals("docm") || ext.equals("dotx")) {
-            xml(need(z, "word/document.xml"), out);
+            xml(need(z, "word/document.xml"), out, "word/document.xml", keys);
         } else if (ext.equals("xlsx") || ext.equals("xlsm")) {
             xlsx(z, out);
         } else if (ext.equals("pptx") || ext.equals("ppsx")) {
             int i = 1;
             for (String s : numbered(z, "ppt/slides/slide")) {
                 out.append("<h3 class=slide>Slayt ").append(i++).append("</h3>");
-                xml(z.get(s), out);
+                xml(z.get(s), out, s, keys);
             }
         } else {
-            xml(need(z, "content.xml"), out); // odt, ods, odp
+            xml(need(z, "content.xml"), out, null, null); // odt, ods, odp: view only
         }
         return out.toString();
+    }
+
+    // WebView scripts for in-place editing of the data-k spans made by xml()
+    static final String JS_EDIT_ON = "document.querySelectorAll('[data-k]').forEach(function(e){e.contentEditable='plaintext-only';"
+        + "e.style.background='#FFF8E1';e.style.outline='1px dashed #FFB300'})";
+    static final String JS_EDIT_OFF = "document.querySelectorAll('[data-k]').forEach(function(e){e.contentEditable='false';"
+        + "e.style.background='';e.style.outline=''})";
+    static final String JS_COLLECT = "(function(){var o={};document.querySelectorAll('[data-k]').forEach(function(e){"
+        + "o[e.dataset.k]=e.textContent.replace(/\\u00a0/g,' ')});return JSON.stringify(o)})()";
+
+    static final Pattern RUN = Pattern.compile("<(w|a):t(\\s[^>]*?)?(/>|>(.*?)</\\1:t>)", Pattern.DOTALL);
+
+    /** Rewrites the zip with edited run texts. edits: "entry#n" -> new text, as produced by xml(). */
+    static byte[] applyEdits(byte[] zip, Map<String, String> edits) throws Exception {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        ZipOutputStream out = new ZipOutputStream(bytes);
+        ZipInputStream in = new ZipInputStream(new ByteArrayInputStream(zip));
+        Charset utf8 = Charset.forName("UTF-8");
+        for (ZipEntry e; (e = in.getNextEntry()) != null; ) {
+            byte[] d = read(in);
+            if (edits.containsKey(e.getName() + "#0")) {
+                // shortcut: OOXML parts are assumed UTF-8 (Office always writes UTF-8)
+                Matcher m = RUN.matcher(new String(d, utf8));
+                StringBuffer sb = new StringBuffer();
+                for (int k = 0; m.find(); k++) {
+                    String v = edits.get(e.getName() + "#" + k);
+                    if (v == null) continue;
+                    String ns = m.group(1);
+                    m.appendReplacement(sb, Matcher.quoteReplacement("<" + ns + ":t"
+                        + (ns.equals("w") ? " xml:space=\"preserve\"" : "") + ">" + esc(v) + "</" + ns + ":t>"));
+                }
+                m.appendTail(sb);
+                d = sb.toString().getBytes(utf8);
+            }
+            out.putNextEntry(new ZipEntry(e.getName()));
+            out.write(d);
+            out.closeEntry();
+        }
+        out.close();
+        return bytes.toByteArray();
     }
 
     static byte[] need(Map<String, byte[]> z, String name) throws Exception {
